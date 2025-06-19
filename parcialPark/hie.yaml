@@ -1,0 +1,7 @@
+cradle:
+  stack:
+    - path: "./src"
+      component: "parcialPark:lib"
+
+    - path: "./test"
+      component: "parcialPark:test:parcialPark-test"
