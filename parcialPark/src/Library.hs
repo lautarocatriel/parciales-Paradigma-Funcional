@@ -4,6 +4,7 @@
 {-# HLINT ignore "Redundant map" #-}
 {-# HLINT ignore "Redundant ==" #-}
 {-# HLINT ignore "Fuse foldr/map" #-}
+{-# HLINT ignore "Hoist not" #-}
 module Library where
 import PdePreludat
 
@@ -49,8 +50,12 @@ data Atraccion = Atraccion{
     opiniones :: [String],
     estaEnMantenimiento :: Bool,
     reparaciones :: [Reparacion]
-}deriving(Eq, Ord)
-type Reparacion = (Number, (Atraccion -> Atraccion))
+}deriving(Eq, Ord, Show)
+data Reparacion = Reparacion{
+    dias :: Number,
+    trabajo :: Atraccion -> Atraccion
+} deriving( Eq, Ord, Show)
+type Trabajo = Atraccion -> Atraccion
 
 requiereAtencion :: Atraccion -> Reparacion -> Atraccion
 requiereAtencion atraccion reparacion = atraccion {
@@ -64,56 +69,94 @@ queTanBuenaAtraccion atraccion
  |((3>) . length . reparaciones) atraccion = ((*10) . length . nombre) atraccion + ((*2) . length . opiniones) atraccion
  |otherwise = ((*10) . alturaMin) atraccion
 
-eliminarReparacion :: [Reparacion] -> [Reparacion]
-eliminarReparacion [] = []
-eliminarReparacion lista = (drop 1 . reverse) lista
+-- eliminarReparacion :: [Reparacion] -> [Reparacion]
+-- eliminarReparacion [] = []
+-- eliminarReparacion lista = (drop 1 . reverse) lista
+
+eliminarReparacion ::[Reparacion] -> [Reparacion]
+eliminarReparacion =  init 
+tieneReparacionesPendientes :: [Reparacion] -> Bool
+tieneReparacionesPendientes = not . null 
 
 noTieneReparacionesPendientes :: Atraccion -> Bool
 noTieneReparacionesPendientes = (== 0) . length . reparaciones
 
-ajusteDeTornilleria :: Number -> Atraccion -> Atraccion
-ajusteDeTornilleria numero atraccion = atraccion {
-    duracion = (min 10 . (+numero) . duracion) atraccion,
-    reparaciones = (eliminarReparacion . reparaciones) atraccion,
-    estaEnMantenimiento = noTieneReparacionesPendientes atraccion
- }
-
-engrase :: Number -> Atraccion -> Atraccion
-engrase numero atraccion = atraccion {
-    opiniones = ("para valientes" : opiniones atraccion),
-    alturaMin = (((0.1*numero)+) . alturaMin) atraccion,
-    reparaciones = (eliminarReparacion . reparaciones) atraccion,
-    estaEnMantenimiento = noTieneReparacionesPendientes atraccion
+reparar :: Trabajo
+reparar atraccion = atraccion{
+    reparaciones= (eliminarReparacion . reparaciones) atraccion,
+    estaEnMantenimiento = (tieneReparacionesPendientes . eliminarReparacion . reparaciones) atraccion
 }
 
-mantenimientoElectrico :: Atraccion -> Atraccion
-mantenimientoElectrico atraccion = atraccion{
-    opiniones = (take 2 . opiniones) atraccion,
-    reparaciones = (eliminarReparacion. reparaciones) atraccion,
-    estaEnMantenimiento = noTieneReparacionesPendientes atraccion
+-- ajusteDeTornilleria :: Number -> Atraccion -> Atraccion
+-- ajusteDeTornilleria numero atraccion = atraccion {
+--     duracion = (min 10 . (+numero) . duracion) atraccion,
+--     reparaciones = (eliminarReparacion . reparaciones) atraccion,
+--     estaEnMantenimiento = noTieneReparacionesPendientes atraccion
+--  }
+ajusteDeTornilleria :: Number -> Trabajo
+ajusteDeTornilleria tornillos atraccion = reparar atraccion{
+    duracion= (min 10 . (tornillos+) . duracion) atraccion
 }
 
-mantenimientoBasico :: Atraccion -> Atraccion
+
+-- engrase :: Number -> Atraccion -> Atraccion
+-- engrase numero atraccion = atraccion {
+--     opiniones = ("para valientes" : opiniones atraccion),
+--     alturaMin = (((0.1*numero)+) . alturaMin) atraccion,
+--     reparaciones = (eliminarReparacion . reparaciones) atraccion,
+--     estaEnMantenimiento = noTieneReparacionesPendientes atraccion
+-- }
+
+engrase :: Number -> Trabajo
+engrase grasa atraccion = reparar atraccion {
+    alturaMin = (((0.1 * grasa)+) . alturaMin) atraccion,
+    opiniones = "para valientes" : opiniones atraccion
+}
+
+
+
+mantenimientoElectrico :: Trabajo
+mantenimientoElectrico atraccion = reparar atraccion{
+    opiniones = (take 2 . opiniones) atraccion
+}
+
+
+
+mantenimientoBasico :: Trabajo
 mantenimientoBasico = (ajusteDeTornilleria 8) . (engrase 10)
 
 meDaMiedito :: Atraccion -> Bool
-meDaMiedito = ((any (>4)) . (map fst) . reparaciones)
+meDaMiedito = any ((>4) . dias) . reparaciones
 
-cierreAtraccion :: Atraccion -> Bool
-cierreAtraccion = ((>= 7). sum . (map fst) . reparaciones)
+cierraAtraccion :: Atraccion -> Bool
+cierraAtraccion = (>7) . sumOf dias . reparaciones
+-- meDaMiedito :: Atraccion -> Bool
+-- meDaMiedito = ((any (>4)) . (map fst) . reparaciones)
 
 disneyNoEsistis :: [Atraccion] -> Bool
-disneyNoEsistis = ((all noTieneReparacionesPendientes)  . filter(((>5) . length . nombre )))
+disneyNoEsistis = all (not . tieneReparacionesPendientes . reparaciones) . filter ((>5) . length . nombre)
 
-reparacionesPeolas :: Atraccion -> [Reparacion]->Bool
-reparacionesPeolas _ [] = True
-reparacionesPeolas atraccion (reparacion : reparaciones) = mejoraPuntaje atraccion reparacion && reparacionesPeolas (snd reparacion atraccion) reparaciones
+-- cierreAtraccion :: Atraccion -> Bool
+-- cierreAtraccion = ((>= 7). sum . (map fst) . reparaciones)
 
-mejoraPuntaje :: Atraccion -> Reparacion -> Bool
-mejoraPuntaje atraccion reparacion = (queTanBuenaAtraccion (snd reparacion atraccion)) > queTanBuenaAtraccion atraccion
+-- disneyNoEsistis :: [Atraccion] -> Bool
+-- disneyNoEsistis = ((all noTieneReparacionesPendientes)  . filter(((>5) . length . nombre )))
 
-tieneReparacionesPeolas :: Atraccion -> Bool
-tieneReparacionesPeolas atraccion = (reparacionesPeolas atraccion . reparaciones) atraccion
+-- mejoraScoring :: Atraccion -> Reparacion -> Reparacion -> Bool
+-- mejoraScoring atraccion reparacion1 reparacion2 = queTanBuenaAtraccion (reparacion1 atraccion) > queTanBuenaAtraccion . (trabajo . reparacion2) atraccion 
 
-mannyALaObra :: Atraccion -> Atraccion
-mannyALaObra  atraccion= foldr ($) atraccion (((map snd) . reparaciones) atraccion)
+
+mannyALaObra' :: Trabajo
+mannyALaObra' atraccion = (foldr trabajo atraccion . reparaciones) atraccion 
+-- reparacionesPeolas :: Atraccion -> [Reparacion]->Bool
+-- reparacionesPeolas _ [] = True
+-- reparacionesPeolas atraccion (reparacion : reparaciones) = mejoraPuntaje atraccion reparacion && reparacionesPeolas (snd reparacion atraccion) reparaciones
+
+-- mejoraPuntaje :: Atraccion -> Reparacion -> Bool
+-- mejoraPuntaje atraccion reparacion = (queTanBuenaAtraccion (snd reparacion atraccion)) > queTanBuenaAtraccion atraccion
+
+-- tieneReparacionesPeolas :: Atraccion -> Bool
+-- tieneReparacionesPeolas atraccion = (reparacionesPeolas atraccion . reparaciones) atraccion
+
+-- mannyALaObra :: Atraccion -> Atraccion
+-- mannyALaObra  atraccion= foldr ($) atraccion (((map snd) . reparaciones) atraccion)

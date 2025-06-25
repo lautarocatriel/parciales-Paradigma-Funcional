@@ -1,0 +1,7 @@
+cradle:
+  stack:
+    - path: "./src"
+      component: "delivery:lib"
+
+    - path: "./test"
+      component: "delivery:test:delivery-test"
